@@ -1,0 +1,21 @@
+{
+  "name": "PicVibez",
+  "short_name": "PicVibez",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#a855f7",
+  "description": "AI-powered event photo sharing platform",
+  "icons": [
+    {
+      "src": "https://api.iconify.design/lucide:camera.svg?color=%23a855f7",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "https://api.iconify.design/lucide:camera.svg?color=%23a855f7",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
