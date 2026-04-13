@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Merge, Plus, Search, ChevronRight, Check, AlertTriangle, X } from 'lucide-react';
+import { Users, Merge, Plus, Search, ChevronRight, Check, AlertTriangle, X, Sparkles, Loader2 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -11,8 +11,20 @@ export function Group() {
   const [selectedForMerge, setSelectedForMerge] = useState<string[]>([]);
   const [newGroupName, setNewGroupName] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSmartSearch, setIsSmartSearch] = useState(false);
+  const [isSearchingAI, setIsSearchingAI] = useState(false);
 
   const filteredEvents = events.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
+
+  const handleSmartSearch = () => {
+    if (!search) return;
+    setIsSearchingAI(true);
+    setIsSmartSearch(true);
+    // Simulate RAG search
+    setTimeout(() => {
+      setIsSearchingAI(false);
+    }, 2000);
+  };
 
   const handleMergeToggle = (id: string) => {
     if (selectedForMerge.includes(id)) {
@@ -39,7 +51,7 @@ export function Group() {
   };
 
   return (
-    <div className="p-6 h-full flex flex-col pb-32 overflow-y-auto bg-gray-50 dark:bg-[#0A0A0A] text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="p-6 h-full flex flex-col pb-32 md:pb-6 overflow-y-auto bg-gray-50 dark:bg-[#0A0A0A] text-gray-900 dark:text-white transition-colors duration-300">
       <div className="md:max-w-2xl md:mx-auto md:w-full">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Groups</h1>
@@ -51,16 +63,47 @@ export function Group() {
           </button>
         </div>
 
-        <div className="relative mb-6">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
-          <input 
-            type="text" 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search groups..."
-            className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-3 pl-12 pr-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors shadow-sm"
-          />
+        <div className="relative mb-6 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
+            <input 
+              type="text" 
+              value={search}
+              onChange={e => {
+                setSearch(e.target.value);
+                if (e.target.value === '') setIsSmartSearch(false);
+              }}
+              placeholder="Search groups or Ask AI..."
+              className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-3 pl-12 pr-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors shadow-sm"
+            />
+          </div>
+          <button 
+            onClick={handleSmartSearch}
+            disabled={!search || isSearchingAI}
+            className={`px-4 rounded-xl flex items-center justify-center gap-2 font-bold transition-all ${search ? 'bg-gradient-to-r from-[#8b5cf6] to-[#d946ef] text-white shadow-lg shadow-[#8b5cf6]/20 hover:opacity-90' : 'bg-gray-200 dark:bg-[#1A1A1A] text-gray-400 cursor-not-allowed'}`}
+          >
+            {isSearchingAI ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+            <span className="hidden sm:inline">Ask AI</span>
+          </button>
         </div>
+
+        {isSmartSearch && !isSearchingAI && search && (
+          <div className="bg-gradient-to-r from-[#a855f7]/10 to-[#3b82f6]/10 border border-[#a855f7]/20 rounded-2xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#a855f7]/20 flex items-center justify-center shrink-0 mt-1">
+                <Sparkles size={16} className="text-[#a855f7]" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                  I searched across all your groups for "{search}".
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Found 2 matching photos in "Smith-Muller Wedding" based on visual context.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isMerging && (
           <div className="bg-white dark:bg-[#1A1A1A] border border-[#a855f7]/50 rounded-2xl p-4 mb-6 shadow-sm">
@@ -99,6 +142,15 @@ export function Group() {
         )}
 
         <div className="space-y-4">
+          {!isMerging && (
+            <Link to="/create-event" className="flex items-center gap-4 p-4 rounded-2xl border border-dashed border-gray-300 dark:border-white/20 hover:border-[#a855f7] hover:bg-[#a855f7]/5 transition-colors cursor-pointer justify-center mb-2">
+              <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#1A1A1A] flex items-center justify-center">
+                <Plus className="text-[#a855f7]" size={24} />
+              </div>
+              <span className="font-bold text-gray-600 dark:text-gray-300">Create New Group</span>
+            </Link>
+          )}
+
           {filteredEvents.map(event => (
             <div 
               key={event.id}
@@ -130,15 +182,6 @@ export function Group() {
               )}
             </div>
           ))}
-
-          {!isMerging && (
-            <Link to="/create-event" className="flex items-center gap-4 p-4 rounded-2xl border border-dashed border-gray-300 dark:border-white/20 hover:border-[#a855f7] hover:bg-[#a855f7]/5 transition-colors cursor-pointer justify-center">
-              <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#1A1A1A] flex items-center justify-center">
-                <Plus className="text-[#a855f7]" size={24} />
-              </div>
-              <span className="font-bold text-gray-600 dark:text-gray-300">Create New Group</span>
-            </Link>
-          )}
         </div>
       </div>
 

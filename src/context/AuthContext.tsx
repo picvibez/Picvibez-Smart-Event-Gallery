@@ -1,12 +1,19 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '../firebase';
+
+// Simplified mock User interface to replace Firebase User
+export interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  role?: 'admin' | 'guest';
+}
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
-  demoLogin: () => void;
+  demoLogin: (role?: 'admin' | 'guest') => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -21,54 +28,32 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!isDemo) {
-        setUser(currentUser);
-      }
-      setLoading(false);
-    });
+    // Check if there's a saved demo session in localStorage
+    const savedUser = localStorage.getItem('picvibez_demo_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+    setLoading(false);
+  }, []);
 
-    return () => unsubscribe();
-  }, [isDemo]);
-
-  const demoLogin = () => {
-    setIsDemo(true);
-    // Create a mock Firebase User object
-    const mockUser = {
+  const demoLogin = (role: 'admin' | 'guest' = 'admin') => {
+    const mockUser: User = {
       uid: 'demo-user-123',
       email: 'demo@example.com',
       displayName: 'Demo User',
       photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Demo',
-      emailVerified: true,
-      isAnonymous: false,
-      metadata: {},
-      providerData: [],
-      refreshToken: '',
-      tenantId: null,
-      delete: async () => {},
-      getIdToken: async () => 'mock-token',
-      getIdTokenResult: async () => ({ token: 'mock', claims: {}, authTime: '', issuedAtTime: '', expirationTime: '', signInProvider: null, signInSecondFactor: null }),
-      reload: async () => {},
-      toJSON: () => ({}),
-    } as unknown as User;
+      role: role,
+    };
     
     setUser(mockUser);
+    localStorage.setItem('picvibez_demo_user', JSON.stringify(mockUser));
   };
 
   const logout = async () => {
-    try {
-      if (isDemo) {
-        setIsDemo(false);
-        setUser(null);
-      } else {
-        await signOut(auth);
-      }
-    } catch (error) {
-      console.error("Error signing out", error);
-    }
+    setUser(null);
+    localStorage.removeItem('picvibez_demo_user');
   };
 
   return (

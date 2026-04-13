@@ -1,4 +1,4 @@
-import { Settings, LogOut, ChevronRight, CreditCard, Cloud, Smartphone, Shield } from 'lucide-react';
+import { Settings, LogOut, ChevronRight, CreditCard, Cloud, Smartphone, Shield, Gift } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +10,7 @@ export function Account() {
   if (!user) return null;
 
   return (
-    <div className="p-6 h-full flex flex-col pb-32 overflow-y-auto">
+    <div className="p-6 h-full flex flex-col pb-32 md:pb-6 overflow-y-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Profile</h1>
         <button className="p-2 rounded-full bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors">
@@ -46,6 +46,18 @@ export function Account() {
                 <div>
                   <p className="font-bold">Buy Event Passes</p>
                   <p className="text-xs text-gray-400">Unlock premium features for your events</p>
+                </div>
+              </div>
+              <ChevronRight className="text-gray-500" size={20} />
+            </Link>
+            <Link to="/refer" className="flex items-center justify-between p-4 hover:bg-[#2A2A2A] transition-colors border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">
+                  <Gift className="text-pink-400" size={20} />
+                </div>
+                <div>
+                  <p className="font-bold">Refer & Earn</p>
+                  <p className="text-xs text-gray-400">Get free passes for inviting friends</p>
                 </div>
               </div>
               <ChevronRight className="text-gray-500" size={20} />

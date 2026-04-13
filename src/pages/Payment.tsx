@@ -9,7 +9,7 @@ export function Payment() {
   const eventName = location.state?.eventName || 'Summer Gala 2024';
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-[#0A0A0A] overflow-y-auto pb-12 text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-[#0A0A0A] overflow-y-auto pb-24 md:pb-12 text-gray-900 dark:text-white transition-colors duration-300">
       <div className="p-6 md:max-w-2xl md:mx-auto md:w-full">
         <div className="flex items-center justify-between mb-8">
           <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors">

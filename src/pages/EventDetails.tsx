@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Upload, Users, Share2, Settings, Download, Trash2, X, User, Calendar, Info, 
   ArrowUpDown, Filter, LayoutGrid, List, Check, FolderDown, UserPlus, FileDown,
-  Loader2, CheckCircle2, AlertCircle, Sparkles, ChevronDown, ChevronUp, Search, Tag, Pencil, Plus
+  Loader2, CheckCircle2, AlertCircle, Sparkles, ChevronDown, ChevronUp, Search, Tag, Pencil, Plus, Camera as CameraIcon
 } from 'lucide-react';
 import { useAppContext, Photo, DetectedPerson } from '../context/AppContext';
 import { useUpload } from '../context/UploadContext';
@@ -11,6 +11,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { clusterPhotosWithAI } from '../services/aiService';
 import { motion, AnimatePresence } from 'motion/react';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 interface UploadingFile {
   id: string;
@@ -22,7 +23,7 @@ interface UploadingFile {
 export function EventDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { events, addPhoto, deletePhoto, deletePhotos, updatePhotoClusters, updatePhotoDetails, currentUser } = useAppContext();
+  const { events, addPhoto, deletePhoto, deletePhotos, updatePhotoClusters, updatePhotoDetails, currentUser, autoUploadEvents, toggleAutoUploadForEvent } = useAppContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [isEditingPhoto, setIsEditingPhoto] = useState(false);
@@ -35,12 +36,29 @@ export function EventDetails() {
   const [collapsedClusters, setCollapsedClusters] = useState<Set<string>>(new Set());
   
   // Filter and Sort States
-  const [viewMode, setViewMode] = useState<'clusters' | 'feed' | 'ads' | 'members'>('clusters');
+  const [viewMode, setViewMode] = useState<'assets' | 'search' | 'market' | 'members'>('assets');
+  const [gridColumns, setGridColumns] = useState<3 | 4 | 5>(3);
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [userFilter, setUserFilter] = useState<string>('all');
   const [personFilter, setPersonFilter] = useState<string>('all');
+  const [semanticFilter, setSemanticFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showSmartUpload, setShowSmartUpload] = useState(true);
+  const [isFindingMe, setIsFindingMe] = useState(false);
+  const findMeInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFindMe = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setIsFindingMe(true);
+      // Simulate AI processing
+      setTimeout(() => {
+        setIsFindingMe(false);
+        setSemanticFilter('just_you');
+        setViewMode('assets');
+      }, 2000);
+    }
+  };
   
   const event = events.find(e => e.id === id);
 
@@ -168,6 +186,20 @@ export function EventDetails() {
       });
     }
 
+    // Semantic Filter Logic (Mock implementation based on tags/clusters)
+    if (semanticFilter !== 'all') {
+      if (semanticFilter === 'just_you' && currentUser) {
+        result = result.filter(p => p.uploaderId === currentUser.id || p.detectedPeople?.some(person => person.name === currentUser.name));
+      } else if (semanticFilter === 'best_shots') {
+        // Mock: just take first 5 photos as "best shots"
+        result = result.slice(0, 5);
+      } else if (semanticFilter === 'dance_floor') {
+        result = result.filter(p => p.visualTags?.includes('Dance') || p.nameCluster?.includes('Dance'));
+      } else if (semanticFilter === 'group_pics') {
+        result = result.filter(p => p.detectedPeople && p.detectedPeople.length > 2);
+      }
+    }
+
     // Sort by date
     result.sort((a, b) => {
       const dateA = new Date(a.uploadedAt).getTime();
@@ -207,6 +239,29 @@ export function EventDetails() {
       
       // Reset input
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleNativeCamera = async () => {
+    try {
+      const image = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera
+      });
+
+      if (image.webPath) {
+        // Convert webPath to File object
+        const response = await fetch(image.webPath);
+        const blob = await response.blob();
+        const file = new File([blob], `photo_${Date.now()}.${image.format}`, { type: `image/${image.format}` });
+        uploadFiles([file], event.id);
+      }
+    } catch (error) {
+      console.error("Camera error:", error);
+      // Fallback to file input if camera fails or is cancelled
+      fileInputRef.current?.click();
     }
   };
 
@@ -318,7 +373,7 @@ export function EventDetails() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0A0A0A] overflow-y-auto pb-24 text-white">
+    <div className="h-full flex flex-col bg-[#0A0A0A] overflow-y-auto pb-24 md:pb-0 text-white">
       {/* Header Image */}
       <div className="h-72 relative">
         <img src={event.coverImage} alt={event.name} className="w-full h-full object-cover" />
@@ -332,12 +387,14 @@ export function EventDetails() {
             <button className="w-10 h-10 rounded-full bg-black/40 backdrop-blur flex items-center justify-center hover:bg-black/60 transition-colors">
               <Share2 size={20} />
             </button>
-            <button 
-              onClick={() => setShowSettingsModal(true)}
-              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur flex items-center justify-center hover:bg-black/60 transition-colors"
-            >
-              <Settings size={20} />
-            </button>
+            {currentUser?.role !== 'guest' && (
+              <button 
+                onClick={() => setShowSettingsModal(true)}
+                className="w-10 h-10 rounded-full bg-black/40 backdrop-blur flex items-center justify-center hover:bg-black/60 transition-colors"
+              >
+                <Settings size={20} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -364,8 +421,15 @@ export function EventDetails() {
             multiple
           />
           <button 
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handleNativeCamera}
             className="flex-1 bg-[#a855f7] rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold hover:opacity-90 transition-opacity"
+          >
+            <CameraIcon size={20} />
+            Camera
+          </button>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 bg-[#1A1A1A] border border-white/5 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold hover:bg-[#2A2A2A] transition-colors"
           >
             <Upload size={20} />
             Upload
@@ -377,89 +441,72 @@ export function EventDetails() {
             <Users size={20} />
             Invite
           </button>
-          <button 
-            onClick={handleAICluster}
-            disabled={isClustering || event.photos.length === 0}
-            className="w-14 h-14 bg-gradient-to-br from-[#8b5cf6] to-[#d946ef] rounded-2xl flex items-center justify-center text-white shadow-lg shadow-[#8b5cf6]/20 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all"
-            title="AI Cluster Photos"
-          >
-            {isClustering ? (
-              <Loader2 size={24} className="animate-spin" />
-            ) : (
-              <Sparkles size={24} />
-            )}
-          </button>
         </div>
 
-        {/* Sponsored Ads Section - Only shown in feed/clusters as a small preview or if explicitly in ads mode */}
-        {viewMode !== 'ads' && (
-          <div className="mt-8 mb-4">
-            <div className="flex items-center justify-between mb-4 px-2">
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6] animate-pulse" />
-                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Public Advertisement FYIP</h3>
-              </div>
-              <button 
-                onClick={() => setViewMode('ads')}
-                className="text-[8px] font-bold text-[#3b82f6] border border-[#3b82f6]/20 px-2 py-0.5 rounded-full uppercase tracking-widest hover:bg-[#3b82f6]/10 transition-colors"
-              >
-                View All Ads
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4">
-              <div className="group relative bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] rounded-3xl p-5 border border-white/5 overflow-hidden hover:border-[#3b82f6]/30 transition-all duration-500">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#3b82f6]/10 blur-[50px] -mr-16 -mt-16 group-hover:bg-[#3b82f6]/20 transition-all duration-700" />
-                
-                <div className="relative z-10 flex items-center gap-5">
-                  <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                    <img 
-                      src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=200&auto=format&fit=crop" 
-                      alt="Ad" 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-bold text-white mb-1 truncate group-hover:text-[#3b82f6] transition-colors">Premium Event Planning</h4>
-                    <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed mb-3">Make your next event unforgettable with our professional planning services. Special discounts for PicVibez users!</p>
-                    
-                    <div className="flex items-center gap-3">
-                      <button className="text-[10px] font-black text-[#3b82f6] uppercase tracking-widest hover:underline">Learn More</button>
-                    </div>
-                  </div>
+        {/* Smart Upload Banner */}
+        <AnimatePresence>
+          {showSmartUpload && viewMode === 'assets' && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-gradient-to-r from-[#a855f7]/20 to-[#3b82f6]/20 border border-[#a855f7]/30 rounded-2xl p-4 flex items-center justify-between relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#a855f7]/20 blur-[30px] -mr-16 -mt-16" />
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 bg-[#a855f7]/20 rounded-full flex items-center justify-center border border-[#a855f7]/30">
+                  <Sparkles className="text-[#a855f7]" size={24} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">You took 15 photos here tonight! 🚀</h3>
+                  <p className="text-xs text-gray-300">Tap to upload them all instantly.</p>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+              <div className="flex items-center gap-3 relative z-10">
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-[#a855f7] text-white px-4 py-2 rounded-xl text-xs font-bold hover:opacity-90 transition-opacity"
+                >
+                  Upload All
+                </button>
+                <button 
+                  onClick={() => setShowSmartUpload(false)}
+                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Filter Bar */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex bg-[#1A1A1A] p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
               <button 
-                onClick={() => setViewMode('clusters')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'clusters' ? 'bg-[#a855f7] text-white' : 'text-gray-400 hover:text-white'}`}
+                onClick={() => setViewMode('assets')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'assets' ? 'bg-[#a855f7] text-white' : 'text-gray-400 hover:text-white'}`}
               >
                 <LayoutGrid size={14} />
-                Clusters
+                Assets
               </button>
               <button 
-                onClick={() => setViewMode('feed')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'feed' ? 'bg-[#a855f7] text-white' : 'text-gray-400 hover:text-white'}`}
+                onClick={() => setViewMode('search')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'search' ? 'bg-[#a855f7] text-white' : 'text-gray-400 hover:text-white'}`}
               >
-                <List size={14} />
-                Feed
+                <Search size={14} />
+                Visual Search
               </button>
-              <button 
-                onClick={() => setViewMode('ads')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'ads' ? 'bg-[#a855f7] text-white' : 'text-gray-400 hover:text-white'}`}
-              >
-                <Share2 size={14} />
-                Public Ads
-              </button>
+              {currentUser?.role !== 'guest' && (
+                <button 
+                  onClick={() => setViewMode('market')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'market' ? 'bg-[#a855f7] text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <Share2 size={14} />
+                  Market
+                </button>
+              )}
               <button 
                 onClick={() => setViewMode('members')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'members' ? 'bg-[#a855f7] text-white' : 'text-gray-400 hover:text-white'}`}
@@ -469,25 +516,61 @@ export function EventDetails() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
-                <input 
-                  type="text"
-                  placeholder="Search people, colors, roles..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-[#1A1A1A] border border-white/5 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-none focus:border-[#a855f7] transition-all w-full"
-                />
+            {viewMode === 'assets' && (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setGridColumns(prev => prev === 3 ? 4 : prev === 4 ? 5 : 3)}
+                  className="p-2.5 rounded-xl border bg-white/5 border-white/5 text-gray-400 hover:text-white transition-all flex items-center gap-1"
+                  title="Pinch to zoom (Change grid size)"
+                >
+                  <LayoutGrid size={18} />
+                  <span className="text-[10px] font-bold">{gridColumns}</span>
+                </button>
+                <button 
+                  onClick={() => setShowFilters(true)}
+                  className={`p-2.5 rounded-xl border transition-all ${userFilter !== 'all' || personFilter !== 'all' || searchQuery ? 'bg-[#a855f7]/10 border-[#a855f7] text-[#a855f7]' : 'bg-white/5 border-white/5 text-gray-400 hover:text-white'}`}
+                >
+                  <Filter size={18} />
+                </button>
               </div>
+            )}
+          </div>
+
+          {/* Semantic Pill Filters */}
+          {viewMode === 'assets' && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
               <button 
-                onClick={() => setShowFilters(true)}
-                className={`p-2.5 rounded-xl border transition-all ${userFilter !== 'all' || personFilter !== 'all' || searchQuery ? 'bg-[#a855f7]/10 border-[#a855f7] text-[#a855f7]' : 'bg-white/5 border-white/5 text-gray-400 hover:text-white'}`}
+                onClick={() => setSemanticFilter('all')}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${semanticFilter === 'all' ? 'bg-white text-black' : 'bg-[#1A1A1A] text-gray-400 border border-white/5 hover:bg-white/10'}`}
               >
-                <Filter size={18} />
+                All Photos
+              </button>
+              <button 
+                onClick={() => setSemanticFilter('just_you')}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${semanticFilter === 'just_you' ? 'bg-[#a855f7] text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'bg-[#1A1A1A] text-gray-400 border border-white/5 hover:bg-white/10'}`}
+              >
+                ✨ Just You
+              </button>
+              <button 
+                onClick={() => setSemanticFilter('best_shots')}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${semanticFilter === 'best_shots' ? 'bg-[#3b82f6] text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]' : 'bg-[#1A1A1A] text-gray-400 border border-white/5 hover:bg-white/10'}`}
+              >
+                🌟 Best Shots
+              </button>
+              <button 
+                onClick={() => setSemanticFilter('dance_floor')}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${semanticFilter === 'dance_floor' ? 'bg-[#ec4899] text-white shadow-[0_0_15px_rgba(236,72,153,0.4)]' : 'bg-[#1A1A1A] text-gray-400 border border-white/5 hover:bg-white/10'}`}
+              >
+                💃 Dance Floor
+              </button>
+              <button 
+                onClick={() => setSemanticFilter('group_pics')}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${semanticFilter === 'group_pics' ? 'bg-[#10b981] text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-[#1A1A1A] text-gray-400 border border-white/5 hover:bg-white/10'}`}
+              >
+                📸 Group Pics
               </button>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Media Display */}
@@ -565,81 +648,150 @@ export function EventDetails() {
                 </button>
               </div>
             </div>
-          ) : viewMode === 'ads' ? (
+          ) : viewMode === 'market' ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[#3b82f6] animate-pulse" />
-                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Public Advertisement FYIP</h3>
-                </div>
-                <button className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors">
-                  Submit Ad
-                </button>
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                <input 
+                  type="text"
+                  placeholder="Find photographers, decorators..."
+                  className="w-full bg-[#1A1A1A] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:border-[#a855f7] transition-all"
+                />
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
-                <div className="group relative bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] rounded-[2.5rem] p-8 border border-white/5 overflow-hidden hover:border-[#3b82f6]/30 transition-all duration-500">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-[#3b82f6]/10 blur-[80px] -mr-32 -mt-32 group-hover:bg-[#3b82f6]/20 transition-all duration-700" />
-                  
-                  <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                    <div className="w-40 h-40 rounded-3xl overflow-hidden flex-shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                      <img 
-                        src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=400&auto=format&fit=crop" 
-                        alt="Ad" 
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
+              <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                {['Photography', 'Decor', 'DJ & Music', 'Catering'].map(cat => (
+                  <button key={cat} className="flex flex-col items-center gap-2 min-w-[80px]">
+                    <div className="w-16 h-16 rounded-2xl bg-[#1A1A1A] border border-white/5 flex items-center justify-center text-[#a855f7] hover:bg-white/5 transition-colors">
+                      {cat === 'Photography' ? <LayoutGrid size={24} /> : 
+                       cat === 'Decor' ? <Sparkles size={24} /> : 
+                       cat === 'DJ & Music' ? <Share2 size={24} /> : <Users size={24} />}
                     </div>
-                    
-                    <div className="flex-1 text-center md:text-left">
-                      <div className="inline-block px-3 py-1 rounded-full bg-[#3b82f6]/10 border border-[#3b82f6]/20 text-[10px] font-black text-[#3b82f6] uppercase tracking-[0.2em] mb-4">
-                        Featured Service
-                      </div>
-                      <h4 className="text-2xl font-black text-white mb-3 group-hover:text-[#3b82f6] transition-colors">Premium Event Planning</h4>
-                      <p className="text-sm text-gray-400 leading-relaxed mb-6">Make your next event unforgettable with our professional planning services. From weddings to corporate galas, we handle every detail so you can enjoy the vibe. Special discounts for PicVibez users!</p>
-                      
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-                        <button className="bg-[#3b82f6] text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(59,130,246,0.3)]">
-                          Learn More
-                        </button>
-                        <button className="bg-white/5 border border-white/10 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-colors">
-                          Visit Site
-                        </button>
-                      </div>
+                    <span className="text-[10px] font-bold text-gray-400">{cat}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between px-2 pt-4">
+                <h3 className="text-sm font-bold text-white">Top Vendors</h3>
+                <button className="text-[10px] font-bold text-gray-400 hover:text-white">See All</button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-[#1A1A1A] rounded-3xl p-4 border border-white/5 flex gap-4 items-center">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0">
+                    <img src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=200&auto=format&fit=crop" alt="Vendor" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-white mb-1">Elite Photography</h4>
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                      <span className="text-yellow-500">★ 4.9</span>
+                      <span>(128)</span>
+                      <span>•</span>
+                      <span>$8,000</span>
                     </div>
+                    <button className="bg-[#a855f7]/20 text-[#a855f7] px-4 py-1.5 rounded-lg text-xs font-bold">View</button>
                   </div>
                 </div>
-
-                <div className="group relative bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] rounded-[2.5rem] p-8 border border-white/5 overflow-hidden hover:border-[#a855f7]/30 transition-all duration-500">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-[#a855f7]/10 blur-[80px] -mr-32 -mt-32 group-hover:bg-[#a855f7]/20 transition-all duration-700" />
-                  
-                  <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                    <div className="w-40 h-40 rounded-3xl overflow-hidden flex-shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                      <img 
-                        src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=400&auto=format&fit=crop" 
-                        alt="Ad" 
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                    
-                    <div className="flex-1 text-center md:text-left">
-                      <div className="inline-block px-3 py-1 rounded-full bg-[#a855f7]/10 border border-[#a855f7]/20 text-[10px] font-black text-[#a855f7] uppercase tracking-[0.2em] mb-4">
-                        Professional Photography
-                      </div>
-                      <h4 className="text-2xl font-black text-white mb-3 group-hover:text-[#a855f7] transition-colors">Vibe Photography Pro</h4>
-                      <p className="text-sm text-gray-400 leading-relaxed mb-6">Capture every moment in stunning detail. Our team of expert photographers specializes in event coverage, ensuring your memories are preserved forever. Book a professional photographer for your PicVibez event today.</p>
-                      
-                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-                        <button className="bg-[#a855f7] text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(168,85,247,0.3)]">
-                          Book Now
-                        </button>
-                        <button className="bg-white/5 border border-white/10 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-colors">
-                          Portfolio
-                        </button>
-                      </div>
-                    </div>
+                <div className="bg-[#1A1A1A] rounded-3xl p-4 border border-white/5 flex gap-4 items-center">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0">
+                    <img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=200&auto=format&fit=crop" alt="Vendor" className="w-full h-full object-cover" />
                   </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-white mb-1">Dream Decor Studio</h4>
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                      <span className="text-yellow-500">★ 4.8</span>
+                      <span>(96)</span>
+                      <span>•</span>
+                      <span>$12,000</span>
+                    </div>
+                    <button className="bg-[#a855f7]/20 text-[#a855f7] px-4 py-1.5 rounded-lg text-xs font-bold">View</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : viewMode === 'search' ? (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <input 
+                type="file" 
+                ref={findMeInputRef} 
+                onChange={handleFindMe} 
+                className="hidden" 
+                accept="image/*" 
+                capture="user"
+              />
+              <div 
+                onClick={() => !isFindingMe && findMeInputRef.current?.click()}
+                className={`bg-gradient-to-r from-[#a855f7]/20 to-[#d946ef]/20 border border-[#a855f7]/30 rounded-[2rem] p-6 flex items-center justify-between cursor-pointer hover:opacity-90 transition-opacity ${isFindingMe ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-1">
+                    <Sparkles className="text-[#a855f7]" size={20} /> 
+                    {isFindingMe ? 'Scanning Faces...' : 'Find Me'}
+                  </h3>
+                  <p className="text-sm text-gray-300">
+                    {isFindingMe ? 'AI is looking for you in the gallery' : 'Upload a selfie to find your photos'}
+                  </p>
+                </div>
+                <div className="w-16 h-16 rounded-full bg-white/10 border-2 border-[#a855f7] flex items-center justify-center overflow-hidden relative">
+                  {isFindingMe ? (
+                    <div className="absolute inset-0 bg-[#a855f7]/20 flex items-center justify-center">
+                      <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <User className="text-gray-400" size={24} />
+                  )}
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                <input 
+                  type="text"
+                  placeholder="Search people, colors, moments..."
+                  className="w-full bg-[#1A1A1A] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:border-[#a855f7] transition-all"
+                />
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                {['People', 'Moments', 'Colors', 'Outfits'].map(tag => (
+                  <button key={tag} className="px-4 py-2 rounded-full bg-[#1A1A1A] border border-white/5 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/10 whitespace-nowrap">
+                    {tag}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between px-2 mb-4">
+                  <h3 className="text-sm font-bold text-white">People Detected</h3>
+                  <button className="text-[10px] font-bold text-gray-400 hover:text-white">See All</button>
+                </div>
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                  {['Bride', 'Groom', 'Family', 'Friends'].map((person, i) => (
+                    <div key={person} className="flex flex-col items-center gap-2 min-w-[70px]">
+                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10">
+                        <img src={`https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=100&auto=format&fit=crop&sig=${i}`} alt={person} className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400">{person}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between px-2 mb-4">
+                  <h3 className="text-sm font-bold text-white">Suggested</h3>
+                  <button className="text-[10px] font-bold text-gray-400 hover:text-white">All</button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {['Bride & Groom', 'Dance', 'Cake Cutting', 'Group Pics'].map((moment, i) => (
+                    <div key={moment} className="relative rounded-2xl overflow-hidden aspect-[4/3] group cursor-pointer">
+                      <img src={`https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=300&auto=format&fit=crop&sig=${i}`} alt={moment} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-3">
+                        <span className="text-xs font-bold text-white">{moment}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -650,158 +802,38 @@ export function EventDetails() {
               </div>
               <p className="text-gray-400 font-medium">No media matches your filters.</p>
               <button 
-                onClick={() => { setUserFilter('all'); setPersonFilter('all'); setSearchQuery(''); setSortOrder('desc'); }}
+                onClick={() => { setUserFilter('all'); setPersonFilter('all'); setSemanticFilter('all'); setSearchQuery(''); setSortOrder('desc'); }}
                 className="mt-4 text-[#a855f7] text-sm font-bold"
               >
                 Reset Filters
               </button>
             </div>
-          ) : viewMode === 'clusters' ? (
-            <div className="space-y-10">
-              {Object.entries(clusters).map(([clusterName, photos]) => (
-                <div key={clusterName} className="space-y-4">
-                  <button 
-                    onClick={() => toggleCluster(clusterName)}
-                    className="w-full flex items-center justify-between group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-1 h-6 bg-[#a855f7] rounded-full" />
-                      <h4 className="font-bold text-xl group-hover:text-[#a855f7] transition-colors">{clusterName}</h4>
-                      <span className="text-xs text-gray-500 bg-white/5 px-2.5 py-1 rounded-lg">{(photos as Photo[]).length}</span>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadBatch(photos as Photo[], `${event.name}-${clusterName}`);
-                        }}
-                        className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-[#a855f7] transition-all"
-                        title="Download All"
-                      >
-                        <FolderDown size={18} />
-                      </button>
-                    </div>
-                    <div className="text-gray-500 group-hover:text-white transition-colors">
-                      {collapsedClusters.has(clusterName) ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                    </div>
-                  </button>
-                  
-                  <AnimatePresence>
-                    {!collapsedClusters.has(clusterName) && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="grid grid-cols-3 gap-3 pt-2">
-                          {(photos as Photo[]).map(photo => (
-                            <motion.div 
-                              layout
-                              key={photo.id} 
-                              className="aspect-square rounded-2xl overflow-hidden bg-[#1A1A1A] border border-white/5 cursor-pointer hover:border-white/20 transition-all hover:scale-[1.02] relative group"
-                              onClick={() => setSelectedPhoto(photo)}
-                            >
-                              <img src={photo.url} alt="" className="w-full h-full object-cover" />
-                              {photo.detectedPeople && photo.detectedPeople.length > 0 && (
-                                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="flex items-center gap-1.5">
-                                    <User size={10} className="text-[#a855f7]" />
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-white">
-                                      {photo.detectedPeople.length} {photo.detectedPeople.length === 1 ? 'Person' : 'People'}
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-                            </motion.div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))}
-            </div>
-          ) : viewMode === 'feed' ? (
-            <div className="space-y-10">
-              {Object.entries(groupedByUploader).map(([uploader, photos]) => (
-                <div key={uploader} className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#d946ef] flex items-center justify-center text-white font-bold">
-                        {uploader.charAt(0)}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-lg">{uploader}</h4>
-                        <p className="text-xs text-gray-500">{(photos as Photo[]).length} Photos</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => handleDownloadBatch(photos as Photo[], `${event.name}-${uploader}`)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all"
-                    >
-                      <FolderDown size={16} className="text-[#a855f7]" />
-                      Download All
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {(photos as Photo[]).map(photo => (
-                      <div 
-                        key={photo.id} 
-                        className="rounded-2xl overflow-hidden bg-[#1A1A1A] border border-white/5 cursor-pointer hover:border-white/20 transition-all group relative"
-                        onClick={() => setSelectedPhoto(photo)}
-                      >
-                        <div className="aspect-[3/4]">
-                          <img src={photo.url} alt="" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                          {photo.detectedPeople && photo.detectedPeople.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {photo.detectedPeople.slice(0, 2).map(p => (
-                                <span key={p.name} className="text-[8px] bg-[#a855f7] text-white px-1.5 py-0.5 rounded-md font-bold">{p.name}</span>
-                              ))}
-                              {photo.detectedPeople.length > 2 && (
-                                <span className="text-[8px] bg-white/20 text-white px-1.5 py-0.5 rounded-md font-bold">+{photo.detectedPeople.length - 2}</span>
-                              )}
-                            </div>
-                          )}
-                          <p className="text-xs font-bold truncate">{photo.uploader}</p>
-                          <p className="text-[10px] text-gray-400">{new Date(photo.uploadedAt).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
+          ) : viewMode === 'assets' ? (
+            <div 
+              className="grid gap-1 sm:gap-2"
+              style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }}
+            >
               {filteredAndSortedPhotos.map(photo => (
                 <div 
                   key={photo.id} 
-                  className="rounded-2xl overflow-hidden bg-[#1A1A1A] border border-white/5 cursor-pointer hover:border-white/20 transition-all group relative"
+                  className="aspect-square overflow-hidden bg-[#1A1A1A] cursor-pointer hover:opacity-90 transition-opacity relative group"
                   onClick={() => setSelectedPhoto(photo)}
                 >
-                  <div className="aspect-[3/4]">
-                    <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                  <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                  
+                  {/* Uploader DP Icon */}
+                  <div className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-br from-[#a855f7] to-[#d946ef] border border-white/20 flex items-center justify-center text-[8px] sm:text-[10px] font-bold text-white shadow-lg overflow-hidden">
+                    {photo.uploader.charAt(0)}
                   </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                    {photo.detectedPeople && photo.detectedPeople.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {photo.detectedPeople.slice(0, 2).map(p => (
-                          <span key={p.name} className="text-[8px] bg-[#a855f7] text-white px-1.5 py-0.5 rounded-md font-bold">{p.name}</span>
-                        ))}
-                        {photo.detectedPeople.length > 2 && (
-                          <span className="text-[8px] bg-white/20 text-white px-1.5 py-0.5 rounded-md font-bold">+{photo.detectedPeople.length - 2}</span>
-                        )}
-                      </div>
-                    )}
-                    <p className="text-xs font-bold truncate">{photo.uploader}</p>
-                    <p className="text-[10px] text-gray-400">{new Date(photo.uploadedAt).toLocaleDateString()}</p>
+                  
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Search className="text-white" size={20} />
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -1203,6 +1235,7 @@ export function EventDetails() {
                     setSortOrder('desc');
                     setUserFilter('all');
                     setPersonFilter('all');
+                    setSemanticFilter('all');
                     setSearchQuery('');
                   }}
                   className="w-full py-3.5 rounded-xl border border-white/10 text-sm font-bold text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
@@ -1238,6 +1271,32 @@ export function EventDetails() {
               </div>
               
               <div className="space-y-4">
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold flex items-center gap-2">
+                      <Sparkles size={18} className="text-[#a855f7]" />
+                      Smart Auto-Upload
+                    </h4>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={autoUploadEvents.includes(event.id)} 
+                        onChange={(e) => toggleAutoUploadForEvent(event.id, e.target.checked)} 
+                      />
+                      <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#a855f7]"></div>
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    Automatically upload photos taken during this event's timeframe.
+                    {event.startDate && event.endDate && (
+                      <span className="block mt-1 text-[#a855f7] text-xs">
+                        Active from {new Date(event.startDate).toLocaleString()} to {new Date(event.endDate).toLocaleString()}
+                      </span>
+                    )}
+                  </p>
+                </div>
+
                 <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
                   <h4 className="font-bold mb-1">Storage Management</h4>
                   <p className="text-sm text-gray-400 mb-4">Clean up duplicate photos to save space and keep the gallery organized.</p>

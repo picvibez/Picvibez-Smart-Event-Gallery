@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
-import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 
@@ -12,56 +10,45 @@ export function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [role, setRole] = useState<'admin' | 'guest'>('admin');
+
   const { demoLogin } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
+    
+    // Bypassing Firebase for now, direct login
+    setTimeout(() => {
+      demoLogin(role);
       navigate('/');
-    } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Email/Password login is disabled in Firebase. Using Demo Mode instead.');
-        setTimeout(() => {
-          demoLogin();
-          navigate('/');
-        }, 1500);
-      } else {
-        setError(err.message || 'Failed to login');
-      }
-    } finally {
       setLoading(false);
-    }
+    }, 500);
   };
 
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+    
+    // Bypassing Firebase for now, direct login
+    setTimeout(() => {
+      demoLogin(role);
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || 'Failed to login with Google');
-    } finally {
       setLoading(false);
-    }
+    }, 500);
   };
 
   const handleAppleLogin = async () => {
     setError('');
     setLoading(true);
-    try {
-      const provider = new OAuthProvider('apple.com');
-      await signInWithPopup(auth, provider);
+    
+    // Bypassing Firebase for now, direct login
+    setTimeout(() => {
+      demoLogin(role);
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || 'Failed to login with Apple');
-    } finally {
       setLoading(false);
-    }
+    }, 500);
   };
 
   return (
@@ -113,6 +100,34 @@ export function Login() {
                 placeholder="••••••••"
                 className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-4 pl-12 pr-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">Login Role (Demo)</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="role" 
+                  value="admin" 
+                  checked={role === 'admin'} 
+                  onChange={() => setRole('admin')} 
+                  className="accent-[#a855f7]"
+                />
+                <span className="text-sm">Admin</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="role" 
+                  value="guest" 
+                  checked={role === 'guest'} 
+                  onChange={() => setRole('guest')} 
+                  className="accent-[#a855f7]"
+                />
+                <span className="text-sm">Guest</span>
+              </label>
             </div>
           </div>
 

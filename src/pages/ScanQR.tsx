@@ -5,7 +5,7 @@ export function ScanQR() {
   const navigate = useNavigate();
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-[#0A0A0A] overflow-y-auto pb-12 text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-[#0A0A0A] overflow-y-auto pb-24 md:pb-12 text-gray-900 dark:text-white transition-colors duration-300">
       {/* Header */}
       <div className="flex items-center justify-between p-6">
         <div className="flex items-center gap-3">

@@ -23,6 +23,7 @@ import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Splash } from './pages/Splash';
 import { Join } from './pages/Join';
+import { ReferAndEarn } from './pages/ReferAndEarn';
 
 function AppRoutes() {
   const { user } = useAuth();
@@ -53,6 +54,7 @@ function AppRoutes() {
         <Route path="payment" element={<Payment />} />
         <Route path="payment-success" element={<PaymentSuccess />} />
         <Route path="scan" element={<ScanQR />} />
+        <Route path="refer" element={<ReferAndEarn />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

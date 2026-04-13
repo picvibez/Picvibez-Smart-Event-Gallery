@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type EventType = 'Wedding' | 'House Warming' | 'Engagement' | 'Birthday' | 'Corporate' | 'Other';
+export type EventType = 'Wedding' | 'House Warming' | 'Engagement' | 'Birthday' | 'Corporate' | 'Graduation' | 'Baby Shower' | 'Anniversary' | 'Reunion' | 'Party' | 'Other';
 
 export interface DetectedPerson {
   name: string;
@@ -44,6 +44,8 @@ export interface AppEvent {
   name: string;
   type: EventType;
   date: string;
+  startDate?: string;
+  endDate?: string;
   location: string;
   coverImage: string;
   photos: Photo[];
@@ -52,11 +54,13 @@ export interface AppEvent {
 interface AppContextType {
   events: AppEvent[];
   localFolders: LocalFolder[];
-  addEvent: (event: Omit<AppEvent, 'id' | 'photos'>) => void;
+  addEvent: (event: Omit<AppEvent, 'id' | 'photos'> & { id?: string }) => string;
   eventPasses: number;
   setEventPasses: (passes: number) => void;
   autoUpload: boolean;
   setAutoUpload: (val: boolean) => void;
+  autoUploadEvents: string[];
+  toggleAutoUploadForEvent: (eventId: string, enabled: boolean) => void;
   mergeEvents: (event1Id: string, event2Id: string, newName: string) => void;
   addPhoto: (eventId: string, photo: Omit<Photo, 'id' | 'eventId' | 'uploadedAt' | 'uploaderId'>) => void;
   deletePhoto: (eventId: string, photoId: string) => void;
@@ -102,8 +106,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [localFolders, setLocalFolders] = useState<LocalFolder[]>([]);
   const [eventPasses, setEventPasses] = useState<number>(0);
   const [autoUpload, setAutoUpload] = useState(false);
+  const [autoUploadEvents, setAutoUploadEvents] = useState<string[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  const toggleAutoUploadForEvent = (eventId: string, enabled: boolean) => {
+    setAutoUploadEvents(prev => 
+      enabled ? [...prev, eventId] : prev.filter(id => id !== eventId)
+    );
+  };
 
   const login = () => {
     setIsAuthenticated(true);
@@ -130,13 +141,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null);
   };
 
-  const addEvent = (eventData: Omit<AppEvent, 'id' | 'photos'>) => {
+  const addEvent = (eventData: Omit<AppEvent, 'id' | 'photos'> & { id?: string }) => {
+    const newId = eventData.id || Math.random().toString(36).substr(2, 9);
     const newEvent: AppEvent = {
       ...eventData,
-      id: Math.random().toString(36).substr(2, 9),
+      id: newId,
       photos: []
     };
     setEvents([newEvent, ...events]);
+    return newId;
   };
 
   const mergeEvents = (event1Id: string, event2Id: string, newName: string) => {
@@ -249,6 +262,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setEventPasses, 
       autoUpload, 
       setAutoUpload, 
+      autoUploadEvents,
+      toggleAutoUploadForEvent,
       mergeEvents, 
       addPhoto, 
       deletePhoto,

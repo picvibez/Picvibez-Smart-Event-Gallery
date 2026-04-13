@@ -12,13 +12,15 @@ const TEMPLATES = [
 
 export function CreateEvent() {
   const navigate = useNavigate();
-  const { addEvent, eventPasses, setEventPasses } = useAppContext();
+  const { addEvent, eventPasses, setEventPasses, toggleAutoUploadForEvent } = useAppContext();
   
   const [name, setName] = useState('');
   const [type, setType] = useState<EventType>('Wedding');
-  const [date, setDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [location, setLocation] = useState('');
   const [isPremium, setIsPremium] = useState(false);
+  const [enableAutoUpload, setEnableAutoUpload] = useState(false);
 
   const applyTemplate = (template: typeof TEMPLATES[0]) => {
     setName(template.name);
@@ -38,19 +40,25 @@ export function CreateEvent() {
       }
     }
 
-    addEvent({
+    const createdId = addEvent({
       name,
       type,
-      date: date || 'TBD',
+      date: startDate ? new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase() : 'TBD',
+      startDate,
+      endDate,
       location: location || 'TBD',
       coverImage: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=800&auto=format&fit=crop'
     });
+    
+    if (enableAutoUpload) {
+      toggleAutoUploadForEvent(createdId, true);
+    }
     
     navigate('/');
   };
 
   return (
-    <div className="p-6 h-full flex flex-col overflow-y-auto pb-24 bg-gray-50 dark:bg-[#0A0A0A] text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="p-6 h-full flex flex-col overflow-y-auto pb-24 md:pb-6 bg-gray-50 dark:bg-[#0A0A0A] text-gray-900 dark:text-white transition-colors duration-300">
       <div className="md:max-w-2xl md:mx-auto md:w-full">
         <div className="flex items-center mb-8">
           <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors">
@@ -105,25 +113,41 @@ export function CreateEvent() {
               className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-4 px-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors appearance-none shadow-sm"
             >
             <option value="Wedding">Wedding</option>
-            <option value="House Warming">House Warming</option>
             <option value="Engagement">Engagement</option>
             <option value="Birthday">Birthday</option>
+            <option value="Graduation">Graduation</option>
+            <option value="Baby Shower">Baby Shower</option>
+            <option value="Anniversary">Anniversary</option>
+            <option value="House Warming">House Warming</option>
             <option value="Corporate">Corporate</option>
+            <option value="Reunion">Reunion</option>
+            <option value="Party">Party</option>
             <option value="Other">Other</option>
           </select>
         </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">Date</label>
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
-              <input 
-                type="text" 
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                placeholder="e.g. OCT 12"
-                className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-4 pl-12 pr-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
-              />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">Start Date & Time</label>
+              <div className="relative">
+                <input 
+                  type="datetime-local" 
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-4 px-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors shadow-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">End Date & Time</label>
+              <div className="relative">
+                <input 
+                  type="datetime-local" 
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-4 px-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors shadow-sm"
+                />
+              </div>
             </div>
           </div>
 
@@ -139,6 +163,27 @@ export function CreateEvent() {
                 className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl py-4 pl-12 pr-4 text-gray-900 dark:text-white focus:outline-none focus:border-[#a855f7] transition-colors shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
             </div>
+          </div>
+
+          <div className="p-4 bg-[#a855f7]/10 border border-[#a855f7]/20 rounded-2xl flex items-center justify-between">
+            <div>
+              <h4 className="font-bold text-[#a855f7] flex items-center gap-2">
+                <Sparkles size={18} />
+                Smart Auto-Upload
+              </h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Automatically upload photos you take during this event's timeframe.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={enableAutoUpload} 
+                onChange={(e) => setEnableAutoUpload(e.target.checked)} 
+              />
+              <div className="w-11 h-6 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#a855f7]"></div>
+            </label>
           </div>
 
           <div className="space-y-3 mt-2">

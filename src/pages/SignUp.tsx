@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
-import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -21,54 +19,37 @@ export function SignUp() {
     setError('');
     setSuccess('');
     setLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, { displayName: name });
-      await sendEmailVerification(userCredential.user);
-      setSuccess('Account created! Please check your email to verify your account.');
-      // Optional: navigate to login after a delay
-      setTimeout(() => navigate('/login'), 5000);
-    } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Email/Password sign up is disabled in Firebase. Using Demo Mode instead.');
-        setTimeout(() => {
-          demoLogin();
-          navigate('/');
-        }, 1500);
-      } else {
-        setError(err.message || 'Failed to create an account');
-      }
-    } finally {
+    
+    // Bypassing Firebase for now, direct login
+    setTimeout(() => {
+      demoLogin();
+      navigate('/');
       setLoading(false);
-    }
+    }, 500);
   };
 
   const handleGoogleSignUp = async () => {
     setError('');
     setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+    
+    // Bypassing Firebase for now, direct login
+    setTimeout(() => {
+      demoLogin();
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign up with Google');
-    } finally {
       setLoading(false);
-    }
+    }, 500);
   };
 
   const handleAppleSignUp = async () => {
     setError('');
     setLoading(true);
-    try {
-      const provider = new OAuthProvider('apple.com');
-      await signInWithPopup(auth, provider);
+    
+    // Bypassing Firebase for now, direct login
+    setTimeout(() => {
+      demoLogin();
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign up with Apple');
-    } finally {
       setLoading(false);
-    }
+    }, 500);
   };
 
   return (

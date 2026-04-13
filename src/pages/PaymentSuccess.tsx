@@ -12,7 +12,7 @@ export function PaymentSuccess() {
   }, [setUserPlan]);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-[#0A0A0A] overflow-y-auto pb-12 relative text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-[#0A0A0A] overflow-y-auto pb-24 md:pb-12 relative text-gray-900 dark:text-white transition-colors duration-300">
       <div className="absolute inset-0 bg-gradient-to-b from-purple-100 dark:from-[#a855f7]/20 via-gray-50 dark:via-[#0A0A0A] to-gray-50 dark:to-[#0A0A0A] pointer-events-none transition-colors duration-300" />
       
       <div className="p-6 flex-1 flex flex-col items-center justify-center relative z-10 md:max-w-2xl md:mx-auto md:w-full">
